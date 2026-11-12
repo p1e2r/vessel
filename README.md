@@ -8,21 +8,28 @@ A native macOS terminal written entirely in Rust with [GPUI](https://www.gpui.rs
 - **Translucent window** with background blur and a clean titlebar with the tabs in it
 - **RDP and VNC are configurable per connection**: resolution (or "auto" to match the tab), frame rate, scaling (fit or 1:1), colour depth, NLA, wallpaper, font smoothing, desktop effects, ⌘-as-Ctrl, VNC encoding (Tight/ZRLE/Raw), view-only and shared mode
 
+## Download
+
+Grab the latest `.dmg` from [Releases](https://github.com/p1e2r/vessel/releases/latest):
+**Vessel-x.y.z-macos-apple-silicon.dmg** (M-series Macs) or **…-macos-intel.dmg**.
+The app is ad-hoc signed, so the first time, right-click → Open.
+
 ## Build (on your Mac)
 
-You need Rust (https://rustup.rs) and the Xcode Command Line Tools (`xcode-select --install`). You don't need the full Xcode app, because GPUI compiles its Metal shaders at runtime.
+Needs Rust (https://rustup.rs) and the Xcode Command Line Tools (`xcode-select --install`).
 
 ```sh
-./build-mac.sh            # this Mac
-./build-mac.sh arm64      # Apple Silicon
-./build-mac.sh x86_64     # Intel
-./build-mac.sh universal  # both
-open dist/Vessel.app
+scripts/build-macos.sh                               # both .dmgs in dist/
+ARCHS=aarch64-apple-darwin scripts/build-macos.sh    # Apple Silicon only
+cargo run                                            # dev build
 ```
 
-The first build takes a few minutes. The result is `dist/Vessel.app` plus a zip of it. To install it, copy the app to `/Applications`.
+## Branches & releases
 
-For development you can use `cargo run`.
+- **dev** — day-to-day development. Every push is built and tested by GitHub Actions; nothing is published.
+- **main** — releases. Every push publishes the next version `x.y.z` (Cargo.toml version, then the next free patch number) as GitHub's **Latest** release, with an Apple Silicon and an Intel `.dmg` plus `SHA256SUMS`.
+
+Work on `dev`, then merge into `main` to ship.
 
 ## Shortcuts
 
