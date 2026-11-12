@@ -85,7 +85,7 @@ impl TerminalView {
         let (core, rx) = TermCore::new(settings.scrollback);
         let title = match &kind {
             TerminalKind::Local => {
-                if let Err(e) = pty::spawn_local(&core, rx, &settings.shell) {
+                if let Err(e) = pty::spawn_local(&core, rx, &settings.shell, &settings.start_dir) {
                     core.sink().error(&format!("Failed to start {}: {e:#}", settings.shell));
                 }
                 std::path::Path::new(&settings.shell)

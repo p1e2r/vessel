@@ -43,7 +43,7 @@ Work on `dev`, then merge into `main` to ship.
 | ⌘C / ⌘V / ⌘A | Copy / paste / select all (terminal) |
 | ⌘K | Clear the screen and scrollback |
 | ⌘+ / ⌘− / ⌘0 | Font size |
-| ⌘, | Open settings.json |
+| ⌘, | Settings |
 | ⌘⇧U | Toggle blur |
 | ⌥← / ⌥→, ⌘← / ⌘→ | Move by word / to start or end of the line |
 
@@ -78,7 +78,14 @@ To use macOS Screen Sharing as the server, enable *"VNC viewers may control scre
 
 ## Settings
 
-Settings are in `~/Library/Application Support/Vessel/settings.json` (⌘, opens it):
+Open **Settings** with ⌘, or the ⚙ button in the titlebar. Changes apply immediately:
+
+- **Transparency:** Solid, 95%, 90%, 80%, 70%, 60%, 50%, or fine-tune it in 5% steps
+- **Blur** what's behind the window
+- **Start new tabs in:** any folder (type a path, use **Choose…**, or **Home**)
+- **Font size**
+
+Everything is also in `~/Library/Application Support/Vessel/settings.json` (⌘, opens it):
 
 ```json
 {
@@ -88,6 +95,7 @@ Settings are in `~/Library/Application Support/Vessel/settings.json` (⌘, opens
   "opacity": 0.8,
   "blur": true,
   "shell": "/bin/zsh",
+  "start_dir": "~/Projects",
   "option_as_meta": false,
   "scrollback": 10000,
   "copy_on_select": false

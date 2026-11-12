@@ -10,7 +10,8 @@ use crate::editor::{Editor, EditorEvent};
 use crate::palette::{Palette, PaletteEvent};
 use crate::profiles::{secret_delete, secret_set, Kind, Profile, ProfileStore};
 use crate::remote::{RemoteEvent, RemoteView, Status};
-use crate::settings::{config_dir, Settings};
+use crate::settings::Settings;
+use crate::settings_panel::{SettingsEvent, SettingsPanel};
 use crate::terminal::view::{TerminalEvent, TerminalKind, TerminalView};
 use crate::theme;
 
@@ -132,6 +133,7 @@ enum Overlay {
     None,
     Palette(Entity<Palette>, Subscription),
     Editor(Entity<Editor>, Subscription),
+    Settings(Entity<SettingsPanel>, Subscription),
 }
 
 pub struct Workspace {
@@ -141,6 +143,7 @@ pub struct Workspace {
     overlay: Overlay,
     sidebar: bool,
     focus: FocusHandle,
+    _settings_sub: Subscription,
 }
 
 impl Workspace {
@@ -152,6 +155,16 @@ impl Workspace {
             overlay: Overlay::None,
             sidebar: false,
             focus: cx.focus_handle(),
+            // Settings changes (opacity, font…) repaint every tab right away.
+            _settings_sub: cx.observe_global::<Settings>(|this: &mut Self, cx| {
+                for t in &this.tabs {
+                    match &t.content {
+                        Content::Term(v) => v.update(cx, |_, cx| cx.notify()),
+                        Content::Remote(v) => v.update(cx, |_, cx| cx.notify()),
+                    }
+                }
+                cx.notify();
+            }),
         };
         ws.new_local_tab(window, cx);
         ws
@@ -385,12 +398,21 @@ impl Workspace {
     fn act_reset(&mut self, _: &FontReset, _: &mut Window, cx: &mut Context<Self>) {
         self.change_font(0.0, cx);
     }
-    fn act_settings(&mut self, _: &OpenSettings, _: &mut Window, _: &mut Context<Self>) {
-        let path = config_dir().join("settings.json");
-        #[cfg(target_os = "macos")]
-        let _ = std::process::Command::new("open").arg("-t").arg(path).spawn();
-        #[cfg(not(target_os = "macos"))]
-        let _ = std::process::Command::new("xdg-open").arg(path).spawn();
+    fn act_settings(&mut self, _: &OpenSettings, window: &mut Window, cx: &mut Context<Self>) {
+        if matches!(self.overlay, Overlay::Settings(..)) {
+            self.close_overlay(window, cx);
+        } else {
+            self.open_settings(window, cx);
+        }
+    }
+
+    fn open_settings(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let panel = cx.new(|cx| SettingsPanel::new(window, cx));
+        let sub = cx.subscribe_in(&panel, window, |this, _, ev: &SettingsEvent, window, cx| match ev {
+            SettingsEvent::Close => this.close_overlay(window, cx),
+        });
+        self.overlay = Overlay::Settings(panel, sub);
+        cx.notify();
     }
     fn act_blur(&mut self, _: &ToggleBlur, window: &mut Window, cx: &mut Context<Self>) {
         let mut s = cx.global::<Settings>().clone();
@@ -488,6 +510,7 @@ impl Workspace {
                 icon_button("quick", "⌕  Connect", "Quick connect  ⌘P")
                     .on_click(cx.listener(|this, _, window, cx| this.open_palette(window, cx))),
             )
+            .child(icon_button("settings", "⚙", "Settings  ⌘,").on_click(cx.listener(|this, _, window, cx| this.open_settings(window, cx))))
             .child(
                 icon_button("sidebar", "☰", "Connections  ⌘B")
                     .when(self.sidebar, |d| d.bg(theme::active_tab()))
@@ -642,6 +665,7 @@ impl Render for Workspace {
             Overlay::None => None,
             Overlay::Palette(p, _) => Some((p.clone().into_any_element(), true)),
             Overlay::Editor(e, _) => Some((e.clone().into_any_element(), false)),
+            Overlay::Settings(p, _) => Some((p.clone().into_any_element(), false)),
         };
 
         div()

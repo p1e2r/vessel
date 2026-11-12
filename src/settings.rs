@@ -17,6 +17,8 @@ pub struct Settings {
     pub blur: bool,
     /// Shell for local tabs. Started as a login shell.
     pub shell: String,
+    /// Folder new local tabs start in ("~/Projects", "/tmp", …). Empty = home folder.
+    pub start_dir: String,
     /// Treat Option as Meta (sends ESC-prefixed keys) instead of typing special characters.
     pub option_as_meta: bool,
     /// Lines of scrollback kept per tab.
@@ -34,6 +36,7 @@ impl Default for Settings {
             opacity: 0.80,
             blur: true,
             shell: "/bin/zsh".into(),
+            start_dir: String::new(),
             option_as_meta: false,
             scrollback: 10_000,
             copy_on_select: false,

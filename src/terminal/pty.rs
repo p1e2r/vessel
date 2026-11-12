@@ -6,7 +6,7 @@ use portable_pty::{native_pty_system, CommandBuilder, PtySize};
 
 use super::{TermCore, TransportMsg};
 
-pub fn spawn_local(core: &TermCore, rx: flume::Receiver<TransportMsg>, shell: &str) -> anyhow::Result<()> {
+pub fn spawn_local(core: &TermCore, rx: flume::Receiver<TransportMsg>, shell: &str, start_dir: &str) -> anyhow::Result<()> {
     let pty = native_pty_system();
     let pair = pty.openpty(PtySize { rows: 30, cols: 100, pixel_width: 0, pixel_height: 0 })?;
 
@@ -25,8 +25,14 @@ pub fn spawn_local(core: &TermCore, rx: flume::Receiver<TransportMsg>, shell: &s
     if std::env::var("LANG").map(|l| l.is_empty()).unwrap_or(true) {
         cmd.env("LANG", "en_US.UTF-8");
     }
-    if let Some(home) = dirs::home_dir() {
-        cmd.cwd(home);
+    let wanted = start_dir.trim();
+    let dir = if wanted.is_empty() || wanted == "~" {
+        dirs::home_dir()
+    } else {
+        Some(crate::profiles::expand_tilde(wanted)).filter(|d| d.is_dir()).or_else(dirs::home_dir)
+    };
+    if let Some(dir) = dir {
+        cmd.cwd(dir);
     }
 
     let mut child = pair.slave.spawn_command(cmd)?;

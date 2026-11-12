@@ -10,6 +10,7 @@ mod profiles;
 mod remote;
 mod runtime;
 mod settings;
+mod settings_panel;
 mod terminal;
 mod theme;
 mod workspace;
@@ -57,6 +58,7 @@ fn main() {
         terminal::view::bind_keys(cx);
         palette::bind_keys(cx);
         editor::bind_keys(cx);
+        settings_panel::bind_keys(cx);
         workspace::bind_keys(cx);
 
         cx.set_menus(vec![
