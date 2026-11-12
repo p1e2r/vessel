@@ -85,7 +85,7 @@ Open **Settings** with ⌘, or the ⚙ button in the titlebar. Changes apply imm
 - **Start new tabs in:** any folder (type a path, use **Choose…**, or **Home**)
 - **Font size**
 
-Everything is also in `~/Library/Application Support/Vessel/settings.json` (⌘, opens it):
+Everything is also saved in `~/Library/Application Support/Vessel/settings.json` (the panel’s **Edit JSON** button opens it):
 
 ```json
 {
