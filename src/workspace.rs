@@ -14,6 +14,7 @@ use crate::settings::Settings;
 use crate::settings_panel::{SettingsEvent, SettingsPanel};
 use crate::terminal::view::{TerminalEvent, TerminalKind, TerminalView};
 use crate::theme;
+use crate::updates::{UpdateStatus, Updater};
 
 actions!(
     workspace,
@@ -29,6 +30,7 @@ actions!(
         FontSmaller,
         FontReset,
         OpenSettings,
+        CheckForUpdates,
         ToggleBlur,
         Quit,
         Tab1,
@@ -406,6 +408,13 @@ impl Workspace {
         }
     }
 
+    fn act_check_updates(&mut self, _: &CheckForUpdates, window: &mut Window, cx: &mut Context<Self>) {
+        cx.global::<Updater>().check(false);
+        if !matches!(self.overlay, Overlay::Settings(..)) {
+            self.open_settings(window, cx);
+        }
+    }
+
     fn open_settings(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         let panel = cx.new(|cx| SettingsPanel::new(window, cx));
         let sub = cx.subscribe_in(&panel, window, |this, _, ev: &SettingsEvent, window, cx| match ev {
@@ -506,6 +515,7 @@ impl Workspace {
             .child(div().flex().items_center().gap_1().overflow_hidden().children(tabs))
             .child(icon_button("new-tab", "+", "New tab  ⌘T").on_click(cx.listener(|this, _, window, cx| this.new_local_tab(window, cx))))
             .child(div().flex_1().h_full())
+            .children(update_pill(cx))
             .child(
                 icon_button("quick", "⌕  Connect", "Quick connect  ⌘P")
                     .on_click(cx.listener(|this, _, window, cx| this.open_palette(window, cx))),
@@ -623,6 +633,50 @@ impl Workspace {
     }
 }
 
+/// Titlebar button shown while an update is available / downloading / ready.
+fn update_pill(cx: &mut Context<Workspace>) -> Option<impl IntoElement> {
+    let status = cx.global::<Updater>().get();
+    let (label, clickable): (String, bool) = match &status {
+        UpdateStatus::Available { version, .. } => (format!("↑ Update to {version}"), true),
+        UpdateStatus::Downloading { received, total: Some(t), .. } if *t > 0 => {
+            (format!("Downloading {}%", received * 100 / t), false)
+        }
+        UpdateStatus::Downloading { .. } => ("Downloading…".into(), false),
+        UpdateStatus::Installing { .. } => ("Installing…".into(), false),
+        UpdateStatus::Installed { .. } => ("↻ Restart to update".into(), true),
+        _ => return None,
+    };
+    Some(
+        div()
+            .id("update-pill")
+            .h(px(24.))
+            .px_3()
+            .flex()
+            .items_center()
+            .rounded_full()
+            .text_size(px(12.))
+            .text_color(theme::hex(0x0e1116))
+            .bg(theme::hex(theme::ACCENT))
+            .when(clickable, |d| d.cursor_pointer().hover(|s| s.opacity(0.85)))
+            .when(!clickable, |d| d.opacity(0.75))
+            .child(label)
+            .on_click(|_, _, cx| match cx.global::<Updater>().get() {
+                UpdateStatus::Available { .. } => cx.global::<Updater>().install(),
+                UpdateStatus::Installed { .. } => restart_into_update(cx),
+                _ => {}
+            }),
+    )
+}
+
+/// Quit and reopen the freshly installed Vessel.app.
+pub fn restart_into_update(cx: &mut App) {
+    if let UpdateStatus::Installed { program, .. } = cx.global::<Updater>().get() {
+        if crate::updates::relaunch_after_exit(&program).is_ok() {
+            cx.quit();
+        }
+    }
+}
+
 fn kind_dot(kind: Kind, dead: bool) -> impl IntoElement {
     let color = match kind {
         Kind::Ssh => theme::OK,
@@ -682,6 +736,7 @@ impl Render for Workspace {
             .on_action(cx.listener(Self::act_smaller))
             .on_action(cx.listener(Self::act_reset))
             .on_action(cx.listener(Self::act_settings))
+            .on_action(cx.listener(Self::act_check_updates))
             .on_action(cx.listener(Self::act_blur))
             .on_action(cx.listener(Self::act_quit))
             .on_action(cx.listener(|this, _: &Tab1, w, cx| this.activate(0, w, cx)))

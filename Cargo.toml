@@ -33,6 +33,9 @@ flume = "0.11"
 sha2 = "0.10"
 unicode-segmentation = "1"
 x509-cert = "0.2"
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "http2", "stream"] }
+rustls = { version = "0.23", default-features = false, features = ["aws_lc_rs"] }
+futures-util = "0.3"
 
 [profile.release]
 opt-level = 3

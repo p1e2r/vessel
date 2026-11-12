@@ -13,6 +13,7 @@ mod settings;
 mod settings_panel;
 mod terminal;
 mod theme;
+mod updates;
 mod workspace;
 
 use gpui::{
@@ -51,8 +52,34 @@ fn main() {
         std::process::exit(probe::run(&args[1..]));
     }
 
+    // Several TLS users (RDP, updater) share rustls; pick one crypto provider for all of them.
+    let _ = rustls::crypto::aws_lc_rs::default_provider().install_default();
+
     Application::new().run(|cx: &mut App| {
         cx.set_global(Settings::load());
+
+        // Updates: repaint windows whenever the updater's state changes, and check
+        // GitHub at launch and every 6 hours (unless turned off in Settings).
+        let (updater, wake) = updates::Updater::new();
+        cx.set_global(updater);
+        cx.spawn(async move |cx| {
+            while wake.recv_async().await.is_ok() {
+                while wake.try_recv().is_ok() {}
+                if cx.update(|cx| cx.refresh_windows()).is_err() {
+                    break;
+                }
+            }
+        })
+        .detach();
+        cx.spawn(async move |cx| loop {
+            let _ = cx.update(|cx| {
+                if cx.global::<Settings>().auto_update_check {
+                    cx.global::<updates::Updater>().check(true);
+                }
+            });
+            cx.background_executor().timer(std::time::Duration::from_secs(6 * 60 * 60)).await;
+        })
+        .detach();
 
         input::bind_keys(cx);
         terminal::view::bind_keys(cx);
@@ -66,6 +93,7 @@ fn main() {
                 name: "Vessel".into(),
                 items: vec![
                     MenuItem::action("Settings…", workspace::OpenSettings),
+                    MenuItem::action("Check for Updates…", workspace::CheckForUpdates),
                     MenuItem::action("Toggle Blur", workspace::ToggleBlur),
                     MenuItem::separator(),
                     MenuItem::action("Quit Vessel", workspace::Quit),

@@ -74,6 +74,8 @@ pub struct TerminalView {
     metrics: Arc<Mutex<Metrics>>,
     selecting: bool,
     scroll_px: f32,
+    /// Startup command, sent once the shell has drawn its first output.
+    pending_startup: Option<String>,
     _pump: Task<()>,
 }
 
@@ -83,10 +85,20 @@ impl TerminalView {
     pub fn new(kind: TerminalKind, _window: &mut Window, cx: &mut Context<Self>) -> Self {
         let settings = cx.global::<Settings>().clone();
         let (core, rx) = TermCore::new(settings.scrollback);
+        let mut pending_startup: Option<String> = None;
         let title = match &kind {
             TerminalKind::Local => {
                 if let Err(e) = pty::spawn_local(&core, rx, &settings.shell, &settings.start_dir) {
                     core.sink().error(&format!("Failed to start {}: {e:#}", settings.shell));
+                } else {
+                    // Startup command: typed into the shell, so it runs once the prompt is up
+                    // and anything it changes (cd, exports, aliases) stays in this tab.
+                    static FIRST_TAB_DONE: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+                    let first = !FIRST_TAB_DONE.swap(true, std::sync::atomic::Ordering::SeqCst);
+                    let cmd = settings.startup_command.trim();
+                    if !cmd.is_empty() && (first || !settings.startup_first_tab_only) {
+                        pending_startup = Some(format!("{cmd}\r"));
+                    }
                 }
                 std::path::Path::new(&settings.shell)
                     .file_name()
@@ -119,6 +131,7 @@ impl TerminalView {
             metrics: Arc::new(Mutex::new(Metrics::default())),
             selecting: false,
             scroll_px: 0.0,
+            pending_startup,
             _pump: pump,
         }
     }
@@ -127,7 +140,19 @@ impl TerminalView {
         let mut dirty = false;
         for ev in events {
             match ev {
-                UiEvent::Wakeup => dirty = true,
+                UiEvent::Wakeup => {
+                    dirty = true;
+                    if let Some(cmd) = self.pending_startup.take() {
+                        // Give the shell a moment to finish its rc files and start the line editor,
+                        // so the command isn't echoed twice.
+                        let tx = self.core.transport.clone();
+                        cx.spawn(async move |_, cx| {
+                            cx.background_executor().timer(std::time::Duration::from_millis(300)).await;
+                            let _ = tx.send(TransportMsg::Data(cmd.into_bytes()));
+                        })
+                        .detach();
+                    }
+                }
                 UiEvent::Title(t) => {
                     if !t.trim().is_empty() {
                         self.title = t;

@@ -19,6 +19,12 @@ pub struct Settings {
     pub shell: String,
     /// Folder new local tabs start in ("~/Projects", "/tmp", …). Empty = home folder.
     pub start_dir: String,
+    /// Typed into each new local tab once the shell starts (e.g. "neofetch" or "cd ~/code && ls").
+    pub startup_command: String,
+    /// Only run the startup command in the first tab after Vessel opens.
+    pub startup_first_tab_only: bool,
+    /// Look for a new release on GitHub at launch and every few hours.
+    pub auto_update_check: bool,
     /// Treat Option as Meta (sends ESC-prefixed keys) instead of typing special characters.
     pub option_as_meta: bool,
     /// Lines of scrollback kept per tab.
@@ -37,6 +43,9 @@ impl Default for Settings {
             blur: true,
             shell: "/bin/zsh".into(),
             start_dir: String::new(),
+            startup_command: String::new(),
+            startup_first_tab_only: false,
+            auto_update_check: true,
             option_as_meta: false,
             scrollback: 10_000,
             copy_on_select: false,

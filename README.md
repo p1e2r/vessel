@@ -14,6 +14,10 @@ Grab the latest `.dmg` from [Releases](https://github.com/p1e2r/vessel/releases/
 **Vessel-x.y.z-macos-apple-silicon.dmg** (M-series Macs) or **…-macos-intel.dmg**.
 The app is ad-hoc signed, so the first time, right-click → Open.
 
+## Updates
+
+Vessel checks GitHub Releases at launch and every 6 hours. When a newer version exists, an **↑ Update to x.y.z** button appears in the titlebar. Click it to download the `.dmg` for your Mac (Apple Silicon or Intel), check it against the release's `SHA256SUMS`, and swap it in place of the running app. Then click **↻ Restart to update**. You can also use **Vessel → Check for Updates…** or the Updates row in Settings. Vessel.app must be in a folder you can write to, such as `/Applications`.
+
 ## Build (on your Mac)
 
 Needs Rust (https://rustup.rs) and the Xcode Command Line Tools (`xcode-select --install`).
@@ -83,7 +87,9 @@ Open **Settings** with ⌘, or the ⚙ button in the titlebar. Changes apply imm
 - **Transparency:** Solid, 95%, 90%, 80%, 70%, 60%, 50%, or fine-tune it in 5% steps
 - **Blur** what's behind the window
 - **Start new tabs in:** any folder (type a path, use **Choose…**, or **Home**)
+- **Startup command:** typed into each new local tab once the shell is up (e.g. `neofetch` or `cd ~/code && git status`), optionally only in the first tab
 - **Font size**
+- **Updates:** check now, install with one click, or turn off automatic checks
 
 Everything is also saved in `~/Library/Application Support/Vessel/settings.json` (the panel’s **Edit JSON** button opens it):
 
@@ -96,6 +102,9 @@ Everything is also saved in `~/Library/Application Support/Vessel/settings.json`
   "blur": true,
   "shell": "/bin/zsh",
   "start_dir": "~/Projects",
+  "startup_command": "",
+  "startup_first_tab_only": false,
+  "auto_update_check": true,
   "option_as_meta": false,
   "scrollback": 10000,
   "copy_on_select": false

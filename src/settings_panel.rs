@@ -9,6 +9,7 @@ use gpui::{
 use crate::input::TextInput;
 use crate::settings::{config_dir, Settings};
 use crate::theme;
+use crate::updates::{UpdateStatus, Updater, RELEASES_PAGE, VERSION};
 
 actions!(settings_panel, [Close, Apply]);
 
@@ -23,6 +24,7 @@ pub enum SettingsEvent {
 
 pub struct SettingsPanel {
     start_dir: Entity<TextInput>,
+    startup_cmd: Entity<TextInput>,
     error: Option<SharedString>,
     focus: FocusHandle,
 }
@@ -35,9 +37,11 @@ impl SettingsPanel {
     pub fn new(window: &mut Window, cx: &mut Context<Self>) -> Self {
         let dir = cx.global::<Settings>().start_dir.clone();
         let start_dir = cx.new(|cx| TextInput::new(cx, "~ (your home folder)", dir));
+        let cmd = cx.global::<Settings>().startup_command.clone();
+        let startup_cmd = cx.new(|cx| TextInput::new(cx, "e.g.  neofetch   or   cd ~/code && git status", cmd));
         let focus = cx.focus_handle();
         window.focus(&focus);
-        Self { start_dir, error: None, focus }
+        Self { start_dir, startup_cmd, error: None, focus }
     }
 
     fn update(cx: &mut App, f: impl FnOnce(&mut Settings)) {
@@ -67,7 +71,11 @@ impl SettingsPanel {
             return false;
         }
         self.error = None;
-        Self::update(cx, |s| s.start_dir = raw);
+        let cmd = self.startup_cmd.read(cx).text().trim().to_string();
+        Self::update(cx, |s| {
+            s.start_dir = raw;
+            s.startup_command = cmd;
+        });
         cx.notify();
         true
     }
@@ -122,7 +130,7 @@ fn label(text: &'static str) -> impl IntoElement {
 }
 
 fn row(l: &'static str, child: impl IntoElement) -> impl IntoElement {
-    div().flex().items_center().gap_3().child(label(l)).child(div().flex_1().child(child))
+    div().flex().items_center().gap_3().child(label(l)).child(div().flex_1().min_w_0().child(child))
 }
 
 fn chip(id: (&'static str, usize), text: String, active: bool) -> gpui::Stateful<gpui::Div> {
@@ -139,6 +147,19 @@ fn chip(id: (&'static str, usize), text: String, active: bool) -> gpui::Stateful
         .child(text)
 }
 
+fn switch(on: bool) -> impl IntoElement {
+    div()
+        .flex_none()
+        .w(px(28.))
+        .h(px(16.))
+        .rounded_full()
+        .p(px(2.))
+        .bg(if on { theme::hex(theme::ACCENT) } else { theme::hexa(0xffffff, 0.15) })
+        .flex()
+        .when(on, |d| d.justify_end())
+        .child(div().size(px(12.)).rounded_full().bg(theme::hex(0xffffff)))
+}
+
 fn button(id: &'static str, text: &'static str, primary: bool) -> gpui::Stateful<gpui::Div> {
     div()
         .id(id)
@@ -151,6 +172,78 @@ fn button(id: &'static str, text: &'static str, primary: bool) -> gpui::Stateful
         .bg(if primary { theme::hex(theme::ACCENT) } else { theme::hexa(0xffffff, 0.08) })
         .hover(|s| s.opacity(0.85))
         .child(text)
+}
+
+impl SettingsPanel {
+    fn render_updates(&self, s: &Settings, cx: &mut Context<Self>) -> impl IntoElement {
+        let status = cx.global::<Updater>().get();
+        let (text, color, action): (String, u32, Option<(&'static str, u8)>) = match &status {
+            UpdateStatus::Idle => (format!("Vessel {VERSION}"), theme::MUTED, Some(("Check now", 0))),
+            UpdateStatus::Checking => ("Checking…".into(), theme::MUTED, None),
+            UpdateStatus::UpToDate => (format!("Vessel {VERSION} is up to date"), theme::OK, Some(("Check again", 0))),
+            UpdateStatus::Available { version, .. } => (format!("Vessel {version} is available (you have {VERSION})"), theme::ACCENT, Some(("Update now", 1))),
+            UpdateStatus::Downloading { received, total, .. } => (
+                match total {
+                    Some(t) if *t > 0 => format!("Downloading… {}%", received * 100 / t),
+                    _ => format!("Downloading… {} MB", received / 1_000_000),
+                },
+                theme::MUTED,
+                None,
+            ),
+            UpdateStatus::Installing { .. } => ("Installing…".into(), theme::MUTED, None),
+            UpdateStatus::Installed { version, .. } => (format!("Vessel {version} is installed"), theme::OK, Some(("Restart now", 2))),
+            UpdateStatus::Failed(e) => (e.clone(), theme::DANGER, Some(("Try again", 0))),
+        };
+        let auto = s.auto_update_check;
+        div()
+            .w_full()
+            .flex()
+            .flex_col()
+            .gap_1()
+            .child(
+                div()
+                    .w_full()
+                    .flex()
+                    .items_center()
+                    .gap_2()
+                    .child(div().flex_1().min_w_0().text_size(px(12.)).text_color(theme::hex(color)).child(text))
+                    .when_some(action, |d, (label, kind)| {
+                        d.child(button("update-action", label, kind != 0).on_click(move |_, _, cx| match kind {
+                            1 => cx.global::<Updater>().install(),
+                            2 => crate::workspace::restart_into_update(cx),
+                            _ => cx.global::<Updater>().check(false),
+                        }))
+                    }),
+            )
+            .child(
+                div()
+                    .flex()
+                    .items_center()
+                    .gap_3()
+                    .child(
+                        div()
+                            .id("auto-update")
+                            .flex()
+                            .items_center()
+                            .gap_2()
+                            .cursor_pointer()
+                            .text_size(px(12.))
+                            .child(switch(auto))
+                            .child("Check for updates automatically")
+                            .on_click(cx.listener(move |_, _, _, cx| Self::update(cx, |s| s.auto_update_check = !auto))),
+                    )
+                    .child(
+                        div()
+                            .id("releases")
+                            .text_size(px(11.))
+                            .text_color(theme::hex(theme::SUBTLE))
+                            .cursor_pointer()
+                            .hover(|s| s.text_color(theme::hex(theme::FG)))
+                            .child("Release notes ↗")
+                            .on_click(|_, _, cx| cx.open_url(RELEASES_PAGE)),
+                    ),
+            )
+    }
 }
 
 impl Render for SettingsPanel {
@@ -251,7 +344,7 @@ impl Render for SettingsPanel {
                         div()
                             .flex()
                             .gap_2()
-                            .child(div().flex_1().child(self.start_dir.clone()))
+                            .child(div().flex_1().min_w_0().child(self.start_dir.clone()))
                             .child(button("choose", "Choose…", false).on_click(cx.listener(|this, _, _, cx| this.choose_folder(cx))))
                             .child(button("home", "Home", false).on_click(cx.listener(|this, _, _, cx| {
                                 this.start_dir.update(cx, |i, cx| i.set_text("", cx));
@@ -260,7 +353,30 @@ impl Render for SettingsPanel {
                     )
                     .when_some(self.error.clone(), |d, e| d.child(div().text_size(px(11.)).text_color(theme::hex(theme::DANGER)).child(e))),
             ))
+            .child(row(
+                "Startup command",
+                div()
+                    .w_full()
+                    .flex()
+                    .flex_col()
+                    .gap_1()
+                    .child(div().w_full().child(self.startup_cmd.clone()))
+                    .child(
+                        div()
+                            .id("first-only")
+                            .flex()
+                            .items_center()
+                            .gap_2()
+                            .cursor_pointer()
+                            .text_size(px(12.))
+                            .child(switch(s.startup_first_tab_only))
+                            .child("Only in the first tab when Vessel opens")
+                            .on_click(cx.listener(|_, _, _, cx| Self::update(cx, |s| s.startup_first_tab_only = !s.startup_first_tab_only))),
+                    )
+                    .child(div().text_size(px(11.)).text_color(theme::hex(theme::SUBTLE)).child("Runs in new local tabs after the shell starts. Saved when you press Done.")),
+            ))
             .child(row("Font size", font))
+            .child(row("Updates", self.render_updates(&s, cx)))
             .child(
                 div()
                     .pt_2()
