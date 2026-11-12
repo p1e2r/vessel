@@ -12,12 +12,9 @@ jobs:
   build:
     strategy:
       matrix:
-        include:
-          - arch: arm64
-            runner: macos-14
-          - arch: x86_64
-            runner: macos-14
-    runs-on: ${{ matrix.runner }}
+        # Both run on Apple Silicon; the Intel build is cross-compiled.
+        arch: [arm64, x86_64]
+    runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
@@ -26,6 +23,8 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           key: ${{ matrix.arch }}
+      - name: Toolchain info
+        run: sw_vers && xcode-select -p && rustc -V
       - name: Build Vessel.app
         run: ./build-mac.sh ${{ matrix.arch }}
       - name: Rename zip
