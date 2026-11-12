@@ -1,0 +1,52 @@
+[package]
+name = "vessel"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+description = "Native Rust macOS terminal with tabs, SSH, RDP and VNC"
+
+[dependencies]
+gpui = "0.2.2"
+alacritty_terminal = "0.26"
+portable-pty = "0.9"
+russh = "=0.62.7"
+ironrdp-connector = "0.12"
+ironrdp-session = "0.13"
+ironrdp-graphics = "0.11"
+ironrdp-input = "0.9"
+ironrdp-pdu = "0.11"
+ironrdp-core = "0.3"
+ironrdp-tokio = { version = "0.12", features = ["reqwest"] }
+ironrdp-tls = { version = "0.3", features = ["rustls"] }
+vnc-rs = "0.6"
+keyring = "4"
+tokio = { version = "1", features = ["full"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+anyhow = "1"
+uuid = { version = "1", features = ["v4", "serde"] }
+dirs = "6"
+parking_lot = "0.12"
+image = { version = "0.25", default-features = false, features = ["jpeg", "png"] }
+smallvec = "1"
+flume = "0.11"
+sha2 = "0.10"
+unicode-segmentation = "1"
+x509-cert = "0.2"
+
+[profile.release]
+opt-level = 3
+lto = "thin"
+codegen-units = 4
+strip = true
+
+[profile.dev.package."*"]
+opt-level = 2
+
+[package.metadata.bundle]
+name = "Vessel"
+identifier = "dev.vessel.terminal"
+
+[target.'cfg(target_os = "macos")'.dependencies]
+# Compile Metal shaders at runtime so building only needs the Command Line Tools, not full Xcode.
+gpui = { version = "0.2.2", features = ["runtime_shaders"] }
